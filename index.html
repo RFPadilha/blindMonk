@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <title>Starting Point</title>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
     <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+
     <style type="text/css">
         body {
           width: 100%;
@@ -17,6 +19,9 @@
 <body>
 
 <script type="text/javascript">
+
+
+
 
 var config = {
     type: Phaser.WEBGL,
@@ -34,168 +39,207 @@ var config = {
 let player = {
 	currentExp : 0,
 	level : 1,
-	damage : 100,
+	damage : 1,
+	skillPoints : 0,
 }
 
 let enemy = {
-	health : 318,//enemies health set to 318 because the healthBar is based on the number of pixels it uses
-	expValue : 70,
-	damageReduction : 1,
+	order : 1,
+	name: 'Tiny Slime',
+	hp : 10,
+	room : 1,
+	exprate : 1,
+	boss : false,
 }
-let sixthEnemy = {
-	health : 318,
-	expValue : 150,
-	damageReduction : 2,
+//csv loader
+var enemyList = [];
+var lines = [];
+$(document).ready(function(){
+	$.ajax({type: "GET",
+	url: "cells.txt",
+	dataType: "text",
+	success: function(data) {processData(data);}
+	});
+});
+
+function processData(allText) {
+	var allTextLines = allText.split(/\r\n|\n/);
+	var headers = allTextLines[0].split(',');
+	
+	for (var i=1; i<allTextLines.length; i++) {
+		var data = allTextLines[i].split(',');
+		if (data.length == headers.length) {
+			var tarr = [];
+			for (var j=0; j<headers.length; j++) {
+				tarr.push(data[j]);
+			}
+		lines.push(tarr);
+		}
+	}
+	console.table(lines);
+// alert(lines);
 }
+//csv loader end
+console.table(lines);
+
+
+
 //it doesn`t matter if it`s var or let, they are interchangeable
 var game = new Phaser.Game(config);
-let expBar;
-var text;//used to hold level text
-var damageText;//used to hold damage text
 let requiredExp = 150;//always 150 because it is based on the maximum number of pixels the expBar can use
-let healthOutline;//it`s only for the monster health bar outline
-let count =0;//used to implement the sixth foe power up
-let enemiesDefeated=0;//holds the number of enemies defeated
-let enemyHealthBar;
-var defeatedText;
-var timerEvents = [];
-var enemyTimerBar;
+//var timerEvents = [];//used to control the boss timer, to be used after spreadsheet integration
 var enemyTimer =159;//entire bar would take 318, i chose to implement a "double bar", hence why the value is halved
 
+//all texts
+var displayPoints;//used to show player's unspent skill points
+var defeatedText;//used to display the "Enemies defeated" text
+var text;//used to hold level text
+var damageText;//used to hold damage text
+//var autoAttackText;//used to display auto attack damage, to be used after spreadsheet integration
 
+//all counters
+//var autoAttackCount=0;//to be used after spreadsheet integration
+//let count =0;//used to implement the sixth foe power up, to be used after spreadsheet integration
+let enemiesDefeated=0;//holds the number of enemies defeated
 
+//all bars
+let enemyHealth = 318;//defines health bar size
+let enemyHealthBar;//used to show enemy health bar, which depends solely on the number of pixels in the screen
+var enemyTimerBar;
+let healthOutline;//it`s only for the monster health bar outline
+let expBar;
 //end of variable definitions
 
-
-
 //main code
-
 function preload ()
 {
     this.load.image('background', 'assets/background.png');
     this.load.spritesheet('button', 'assets/button_spritesheet.png', { frameWidth: 232, frameHeight: 228 });
+    this.load.image('skill', 'assets/skill.png');
 }
 function create (){
 
-	var defeated = [];//string to display number of enemies defeated
-	var levelOutput = [];//used to print level on top left of the screen on update function
+	//all images creation
   	var background = this.add.sprite(0, 0, 'background').setOrigin(0) ;
   	var button = this.add.sprite(185, 552, 'button').setOrigin(0.5).setInteractive();
+  	var skill = this.add.sprite(314 , 450, 'skill').setOrigin(0.5).setInteractive();//places buttons to interact
+  	skill.setScale(.5);//sets skill button scale, in this case, halves all dimensions
 
-  	timerEvents.push(this.time.addEvent({ delay: 7000, loop: false }));//it`s the bar that controls the sixth foe timer
-
+  	//all texts creation
   	defeatedText = this.add.text();//variable used to hold the function that displays text
-  	damageText = this.add.text();
+  	damageText = this.add.text();//.setAlpha(0); first piece out of two of commented code, part of the text fade out effort
+  	autoAttackText = this.add.text();
+  	displayPoints = this.add.text();
   	text = this.add.text();//allows adding text
-  	expBar = this.add.graphics();//allows usage of graphics
-  	enemyTimerBar = this.add.graphics();
 
+  	//all bars creation
+  	expBar = this.add.graphics();//allows usage of graphics in this variable
   	healthOutline = this.add.graphics();
-
   	enemyHealthBar = this.add.graphics();
-  	
-  	
+  	enemyTimerBar = this.add.graphics();
+  	//timerEvents.push(this.time.addEvent({ delay: 7000, loop: false }));//it`s the bar that controls the sixth foe timer
+  	/*
+  	this.tweens.add({
+        targets: damageText,
+        alpha: { value: 1, duration: 200, ease: 'Bounce.easeOut' },
+        yoyo: true,
+        loop: -1
+    });//second piece of commented code, it's part of the effort to make the damage text fade out, not complete yet, can't afford to forget this also
+    */
 
-
-
+  	//attack button behaviour
 	button.on('pointerdown', function (pointer) {
   		this.setTint(0xff0000);
-  		if(count<5){
+  		//if(count<5){
   			attack(enemy);//attack now has a target enemy
-  		}else attack(sixthEnemy);
+  		//}else attack(boss);
   		displayDamage();
-  		
-  		
-  		
 	});
-
   	button.on('pointerout', function (pointer) {
-
       	this.clearTint();
-
   	});
-
   	button.on('pointerup', function (pointer) {
-
     	this.clearTint();
-
+	});
+	
+	//skill button behaviour
+	skill.on('pointerdown', function (pointer){
+		this.setTint(0xff0000);
+		if(player.skillPoints>=1){
+			player.damage=Math.floor(player.damage*1.1);//sets rate at which player damage rises on skill expenditure
+			player.skillPoints--;
+		}
+	});
+	skill.on('pointerout', function (pointer){
+		this.clearTint();
+	});
+	skill.on('pointerup', function (pointer){
+		this.clearTint();
 	});
 }
 
 function update () {
 
-	
-    var levelOutput = [];//used to hold text instances
-    var defeated = [];
-
-
-    levelOutput.push(player.level);//prints out text
-    defeated.push("Enemies defeated:" + enemiesDefeated)
+	//autoAttack();
     
-    expBar.clear();
+    expBar.clear();//making sure the bars are working how they should
     expBar.fillStyle(0xffff00, 1);//defines color
     expBar.fillRoundedRect(139, 49, 1*player.currentExp, 28, 3);//defines x offset, y offset, current length, bar thickness and corner roundness
 
-	healthOutline.clear();
+	healthOutline.clear();//it's only the background for the enemies' health, doesn't change
     healthOutline.fillStyle(0xffffff, 1);
     healthOutline.fillRoundedRect(26, 130, 322, 32, 3);
 
     enemyHealthBar.clear();
     enemyHealthBar.fillStyle(0xff0000, 1);
-
-    if(count<5){//decision on which enemy to use based on count
-		enemyHealthBar.fillRoundedRect(28, 132, enemy.health, 28, 3);//bar size equals enemy health(318 if unaltered)
-  		timerEvents[0].reset({ delay: 7000, loop: false });//timer starts when game starts, this way player always has 7 seconds to defeat the sixth foe
+	enemyHealthBar.fillRoundedRect(28, 132, enemyHealth, 28, 3);//bar size equals enemy health(318 if unaltered)
+  		//timerEvents[0].reset({ delay: 7000, loop: false });//timer starts when game starts, this way player always has 7 seconds to defeat the sixth foe
+  	/*
   	}else {	
 
-		enemyHealthBar.fillRoundedRect(28, 132, sixthEnemy.health, 28, 3);
+		enemyHealthBar.fillRoundedRect(28, 132, boss.health, 28, 3);
 		enemyTimerBar.clear();
 		enemyTimerBar.fillStyle(0xff00ff)
 		enemyTimerBar.fillRoundedRect(187, 147, enemyTimer-(159 * (timerEvents[0].getProgress())), 28, 3);//function to estabilish how timer bar behaves
 		enemyTimerBar.fillRoundedRect(187, 147, -enemyTimer+(159 * (timerEvents[0].getProgress())), 28, -0.3);//essentially there are two mirrored timer bars
-		if((enemyTimer-(159 * (timerEvents[0].getProgress())))<=0 && sixthEnemy.health>0){//if time`s up before foe is down, resets kill streak
+		if((enemyTimer-(159 * (timerEvents[0].getProgress())))<=0 && boss.health>0){//if time`s up before foe is down, resets kill streak
 			enemiesDefeated=0;
 		}
 		
 	}
+	*/
 
-
-	if(enemy.health<=0){
+	//checks for enemy death
+	if(enemyHealth<=0){
 		enemyHealthBar.clear();
 		kill(enemy);
-		enemy.health=318;
+		enemyHealth=318;
 	}
 
-
-	if(sixthEnemy.health<=0){
-		enemyHealthBar.clear();
-		kill(sixthEnemy);
-		sixthEnemy.health=318;
-		enemyTimerBar.clear();
-		enemyTimer=159;
-		count=0;
-	}
-
-
+	//checks for level up
     if (player.currentExp-1 >= requiredExp){//sets xp limit based only in bar width before clearing(-1 so you can see the full bar when currentExp=150)
     	expBar.clear();
     	player.currentExp=player.currentExp - 150;//so there`s no loss of exp upon leveling
-    	player.level++;
+    	levelUp();
     }
 
 	//used to print out level in the top left
-    text.setFont('Neuropolitical');//defines font
+    text.setFont('Neuropolitical');//defines font, phaser doesn't recognize this one
     text.setFontSize(64);//defines size
     if(player.level<10){//adjusts position for double digits
     	text.setPosition(42, 30);
     }else text.setPosition(27,30);
-    text.setText(levelOutput);//prints out level
+    text.setText(player.level);//prints out level
 
     defeatedText.setFontSize(28);//defeated enemies count display
     defeatedText.setTint(0xffffff);
     defeatedText.setPosition(28,385);
-    defeatedText.setText(defeated);
+    defeatedText.setText("Enemies defeated:" + enemiesDefeated);
 
+    displayPoints.setTint(0xffffff);
+    displayPoints.setFontSize(20);
+    displayPoints.setPosition(332, 70);
+    displayPoints.setText(player.skillPoints)
 }
 
 //end of main code
@@ -206,18 +250,67 @@ function displayDamage(){
 	damageText.setFontSize(32);
 	damageText.setPosition((Math.random()*280)+25, (Math.random()*194)+158);//function to randomly determine output position within the "screen"
     damageText.setText(player.damage);
+    
+
 }
 
 function attack(enemy) {
-	enemy.health = enemy.health-(player.damage/enemy.damageReduction);//since health is a fixed value, damage reduction is how we will represent tougher enemies
+	var aux=enemy.hp;//uses aux to store hp before attack
+	enemy.hp = enemy.hp-player.damage;
+	enemyHealth = enemyHealthBar*(enemy.hp/aux);//recalculates current hp based on the proportion of hp lost
 }
 
 function kill(enemy){
-	player.currentExp += (enemy.expValue/player.level);//stronger the player, less exp received
+	player.currentExp += 100*enemy.exprate;//stronger the player, less exp received
 	count++;
 	enemiesDefeated++;
+	enemy = getEnemy();
 }
 
+function levelUp(){//levelUp increases enemies' resistances
+	player.level++;
+	player.damage++;
+	player.skillPoints++;
+}
+
+//Spreadsheet integration code
+
+function getEnemy(){
+	enemy.order = dataList.shift();
+	enemy.name = dataList.shift();
+	enemy.hp = dataList.shift();
+	enemy.room = dataList.shift();
+	enemy.exprate = dataList.shift();
+	enemy.boss = dataList.shift();
+	return enemy;
+}
+
+
+/* to be used after spreadsheet integration
+function autoAttack(){
+
+	var autoAttackDamage = player.damage/2
+	autoAttackText.setTint(0xff00ff);
+	autoAttackText.setFontSize(32);
+	
+	if(player.level>=2){//auto attack definition, starts at level 5
+		autoAttackCount++;//unfortunately, for now it is based only on the refresh rate of the update function
+		if(autoAttackCount>=30){//aproximately 1 second
+			if(count<5){
+				enemyHealth = enemyHealth - Math.floor(autoAttackDamage/enemy.damageReduction);
+				autoAttackText.setPosition((Math.random()*280)+25, (Math.random()*194)+158);//function to randomly determine output position within the "screen"
+				autoAttackText.setText(Math.floor(autoAttackDamage/enemy.damageReduction));
+				autoAttackCount = 0;
+			}else {
+				boss.health = boss.health - Math.floor(autoAttackDamage/boss.damageReduction);
+				autoAttackText.setPosition((Math.random()*280)+25, (Math.random()*194)+158);//function to randomly determine output position within the "screen"
+				autoAttackText.setText(Math.floor(autoAttackDamage/boss.damageReduction));
+				autoAttackCount = 0;//resets count to attack again in a second
+			}
+		}
+	}
+}
+*/
 
 
 </script>
